@@ -1,19 +1,26 @@
-name: Continuos Integration
+name: CI
 
-on: pull_request
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-  continuos-integration:
+  cypress-run:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v3
-      - name: Using Node.js
-        uses: actions/setup-node@v2
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 16.
-      - name: run install, build and test
-        run: |
-          npm install
-          npm run build 
-          npm run test
+          node-version: 18
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Rodar testes Cypress
+        run: npx cypress run
+
