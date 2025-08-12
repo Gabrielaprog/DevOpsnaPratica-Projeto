@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "script.js",
   "scripts": {
-    "build": "react-scripts-build",
+    "build": "react-scripts build",
     "dev": "http-server .",
     "test": "cypress run",
     "test:open": "cypress open"
@@ -13,6 +13,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "cypress": "^14.5.4"
+    "cypress": "^14.5.4",
+    "wait-on": "^8.0.4"
   }
 }
