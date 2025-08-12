@@ -1,33 +1,35 @@
-name: CI
+name: CI - Testes Cypress
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
+    steps:
+      - name: 📥 Clonar código
+        uses: actions/checkout@v3
+
+      - name: 🔧 Instalar Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Instalar dependências
+      - name: 📦 Instalar dependências
         run: npm install
 
-      - name: Iniciar servidor
-        run: npm run dev 
+      - name: ▶️ Iniciar servidor local
+        run: npm run dev &
+      
+      - name: ⏳ Aguardar servidor estar pronto
+        run: npx wait-on http://localhost:8081
 
-      - name: Wait for server to be ready
-        # O 'npx' busca o 'wait-on' que está na pasta 'node_modules/.bin'
-        run: npx wait-on http://localhost:8081 --timeout 120000
-
-      - name: Rodar testes Cypress
-        run: npx cypress run
+      - name: 🧪 Rodar testes Cypress
+        run: npm test
 
