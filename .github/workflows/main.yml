@@ -21,6 +21,9 @@ jobs:
       - name: Instalar dependências
         run: npm install
 
+      - name: Iniciar servidor
+        run: npm run dev &
+
       - name: Rodar testes Cypress
         run: npx cypress run
 
