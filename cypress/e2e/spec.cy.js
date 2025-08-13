@@ -1,4 +1,3 @@
-
 describe('To-Do List', () => {
   beforeEach(() => {
     cy.visit('/index.html'); // Abrindo seu arquivo local
