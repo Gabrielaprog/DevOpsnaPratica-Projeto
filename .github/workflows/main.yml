@@ -22,13 +22,9 @@ jobs:
         run: npm install
 
       - name: Iniciar servidor
-        run: npm run dev 
-
-      - name: Wait for server to be ready
-        # O 'npx' busca o 'wait-on' que está na pasta 'node_modules/.bin'
-        run: npx wait-on http://192.168.0.62:8080 --timeout 120000
-
+        run: npm run dev &
 
       - name: Rodar testes Cypress
         run: npx cypress run
+
 
