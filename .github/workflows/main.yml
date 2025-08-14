@@ -7,8 +7,39 @@ on:
     branches: [ "main" ]
 
 jobs:
+  # Job de Build
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Build da aplicação
+        run: npm run build
+
+      - name: Upload dos artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            *.html
+            *.js
+            *.css
+          retention-days: 7
+
+  # Job de Testes Cypress 
   cypress-run:
     runs-on: ubuntu-latest
+    needs: build  # Executa após o build
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -25,7 +56,6 @@ jobs:
         run: npm run dev &
 
       - name: Wait for server to be ready
-        # O 'npx' busca o 'wait-on' que está na pasta 'node_modules/.bin'
         run: npx wait-on http://127.0.0.1:8080 --timeout 120000
 
       - name: Rodar testes Cypress
