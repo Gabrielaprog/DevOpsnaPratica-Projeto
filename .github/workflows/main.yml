@@ -4,6 +4,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+
 jobs:
   # Job de Infraestrutura 
   infrastructure:
@@ -23,7 +24,7 @@ jobs:
         run: terraform apply -auto-approve
       - name: Verificar arquivo criado
         run: |
-          echo "📄 Conteúdo do arquivo de configuração:"
+          echo "Conteúdo do arquivo de configuração:"
           cat app_config.txt
       - name: Upload arquivo de configuração
         uses: actions/upload-artifact@v4
@@ -32,7 +33,7 @@ jobs:
           path: app_config.txt
           retention-days: 7
 
-  # Job de Build
+  # Job de Build - (Construtução)
   build:
     runs-on: ubuntu-latest
     needs: infrastructure  # Executa após a infraestrutura
@@ -45,7 +46,7 @@ jobs:
           name: infrastructure-artifacts
       - name: Verificar configuração da infraestrutura
         run: |
-          echo "✅ Configuração da infraestrutura disponível:"
+          echo "Configuração da infraestrutura disponível:"
           cat app_config.txt
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -83,10 +84,10 @@ jobs:
           name: build-artifacts
       - name: Verificar artefatos disponíveis
         run: |
-          echo "📦 Artefatos de infraestrutura:"
+          echo "Artefatos de infraestrutura:"
           cat app_config.txt
           echo ""
-          echo "🏗️ Artefatos de build:"
+          echo "Artefatos de build:"
           ls -la *.html *.js *.css 2>/dev/null || echo "Nenhum artefato de build encontrado no root"
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -96,7 +97,7 @@ jobs:
         run: npm install
       - name: Iniciar servidor
         run: npm run dev &
-      - name: Wait for server to be ready
+      - name: Espera o servidor ficar pronto
         run: npx wait-on http://127.0.0.1:8080 --timeout 120000
       - name: Rodar testes Cypress
         run: npx cypress run
