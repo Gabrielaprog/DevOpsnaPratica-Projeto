@@ -12,6 +12,8 @@ provider "local" {}
 # Simula um recurso criando um arquivo
 resource "local_file" "app_config" {
   filename = "${path.module}/app_config.txt"
-  content  = Aplicação provisionada com sucesso!
+  content  = <<EOT
+Aplicação provisionada com sucesso!
+EOT
 
 }
