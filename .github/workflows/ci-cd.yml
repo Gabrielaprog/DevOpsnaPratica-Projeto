@@ -1,4 +1,4 @@
-name: CI-CD Pipeline
+name: CI/CD Pipeline
 on:
   push:
     branches: [ "main" ]
@@ -36,7 +36,7 @@ jobs:
   # Job de Build - (Construtução)
   build:
     runs-on: ubuntu-latest
-    needs: infrastructure  # Executa após a infraestrutura
+    needs: infrastructure
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -70,7 +70,7 @@ jobs:
   # Job de Testes Cypress 
   cypress-run:
     runs-on: ubuntu-latest
-    needs: build  # Executa após o build
+    needs: build
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
       - name: Rodar testes Cypress
         run: npx cypress run
 
-  # Job de Build Docker 
+  # Job de Build Docker
   docker-build:
     runs-on: ubuntu-latest
     needs: cypress-run
@@ -118,16 +118,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Build Docker Image
         run: |
-          echo "Construindo imagem Docker..."
+          echo "🔨 Construindo imagem Docker..."
           docker build -t todo-app:latest .
       - name: Testar container
         run: |
           echo "Testando container..."
-          # Executar container em background para teste
           docker run -d -p 3001:8080 --name test-container todo-app:latest
           sleep 15
           
-          # Testar se a aplicação responde
           if curl -f http://localhost:3001; then
             echo "Container está funcionando corretamente!"
           else
@@ -136,7 +134,6 @@ jobs:
             exit 1
           fi
           
-          # Limpar container de teste
           docker stop test-container
           docker rm test-container
       - name: Salvar imagem Docker como artefato
@@ -150,7 +147,8 @@ jobs:
           path: todo-app-image.tar.gz
           retention-days: 7
 
-  # Job de Deploy Local 
+  # Job de Deploy Local
+  deploy-local:
     runs-on: ubuntu-latest
     needs: docker-build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -173,7 +171,6 @@ jobs:
         run: |
           echo "Simulando deploy com Docker Compose..."
           
-          # Criar docker-compose.yml temporário para o teste
           cat > docker-compose-ci.yml << 'EOF'
           version: '3.8'
           services:
@@ -185,13 +182,9 @@ jobs:
               restart: unless-stopped
           EOF
           
-          # Subir aplicação usando a imagem
           docker-compose -f docker-compose-ci.yml up -d
-          
-          # Aguardar container subir
           sleep 15
           
-          # Verificar se está funcionando
           if curl -f http://localhost:3002; then
             echo "Deploy simulado realizado com sucesso!"
             echo "Aplicação disponível em: http://localhost:3002"
@@ -203,7 +196,6 @@ jobs:
             exit 1
           fi
           
-          # Limpar teste
           docker-compose -f docker-compose-ci.yml down
       - name: Relatório final de deploy
         run: |
@@ -217,12 +209,8 @@ jobs:
           echo "Deploy simulado realizado"
           echo ""
           echo "Pronto para deploy em produção!"
-          echo "Artefatos disponíveis:"
-          echo "  - Código compilado"
-          echo "  - Imagem Docker: todo-app:latest"
-          echo "  - Configuração de infraestrutura"
 
-  # Job de Notificação 
+  # Job de Notificação
   notify:
     runs-on: ubuntu-latest
     needs: [infrastructure, build, cypress-run, docker-build, deploy-local]
@@ -246,4 +234,3 @@ jobs:
             echo "FALHA NO PIPELINE!"
             echo "Verifique os logs dos jobs que falharam"
           fi
-
