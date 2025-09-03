@@ -1,0 +1,249 @@
+name: CI-CD Pipeline
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # Job de Infraestrutura 
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ~1.0
+      - name: Terraform Init
+        run: terraform init
+      - name: Terraform Plan
+        run: terraform plan
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+      - name: Verificar arquivo criado
+        run: |
+          echo "Conteúdo do arquivo de configuração:"
+          cat app_config.txt
+      - name: Upload arquivo de configuração
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-artifacts
+          path: app_config.txt
+          retention-days: 7
+
+  # Job de Build - (Construtução)
+  build:
+    runs-on: ubuntu-latest
+    needs: infrastructure  # Executa após a infraestrutura
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      - name: Download infrastructure artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: infrastructure-artifacts
+      - name: Verificar configuração da infraestrutura
+        run: |
+          echo "Configuração da infraestrutura disponível:"
+          cat app_config.txt
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+      - name: Instalar dependências
+        run: npm install
+      - name: Build da aplicação
+        run: npm run build
+      - name: Upload dos artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            *.html
+            *.js
+            *.css
+          retention-days: 7
+
+  # Job de Testes Cypress 
+  cypress-run:
+    runs-on: ubuntu-latest
+    needs: build  # Executa após o build
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      - name: Download infrastructure artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: infrastructure-artifacts
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      - name: Verificar artefatos disponíveis
+        run: |
+          echo "Artefatos de infraestrutura:"
+          cat app_config.txt
+          echo ""
+          echo "Artefatos de build:"
+          ls -la *.html *.js *.css 2>/dev/null || echo "Nenhum artefato de build encontrado no root"
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Instalar dependências
+        run: npm install
+      - name: Iniciar servidor
+        run: npm run dev &
+      - name: Espera o servidor ficar pronto
+        run: npx wait-on http://127.0.0.1:8080 --timeout 120000
+      - name: Rodar testes Cypress
+        run: npx cypress run
+
+  # Job de Build Docker 
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: cypress-run
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker Image
+        run: |
+          echo "Construindo imagem Docker..."
+          docker build -t todo-app:latest .
+      - name: Testar container
+        run: |
+          echo "Testando container..."
+          # Executar container em background para teste
+          docker run -d -p 3001:8080 --name test-container todo-app:latest
+          sleep 15
+          
+          # Testar se a aplicação responde
+          if curl -f http://localhost:3001; then
+            echo "Container está funcionando corretamente!"
+          else
+            echo "Erro: Container não está respondendo"
+            docker logs test-container
+            exit 1
+          fi
+          
+          # Limpar container de teste
+          docker stop test-container
+          docker rm test-container
+      - name: Salvar imagem Docker como artefato
+        run: |
+          echo "Salvando imagem Docker..."
+          docker save todo-app:latest | gzip > todo-app-image.tar.gz
+      - name: Upload da imagem Docker
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: todo-app-image.tar.gz
+          retention-days: 7
+
+  # Job de Deploy Local 
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      - name: Download docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+      - name: Carregar imagem Docker
+        run: |
+          echo "Carregando imagem Docker..."
+          docker load < todo-app-image.tar.gz
+      - name: Deploy usando Docker Compose
+        run: |
+          echo "Simulando deploy com Docker Compose..."
+          
+          # Criar docker-compose.yml temporário para o teste
+          cat > docker-compose-ci.yml << 'EOF'
+          version: '3.8'
+          services:
+            todo-app:
+              image: todo-app:latest
+              container_name: todo-app-ci-test
+              ports:
+                - "3002:8080"
+              restart: unless-stopped
+          EOF
+          
+          # Subir aplicação usando a imagem
+          docker-compose -f docker-compose-ci.yml up -d
+          
+          # Aguardar container subir
+          sleep 15
+          
+          # Verificar se está funcionando
+          if curl -f http://localhost:3002; then
+            echo "Deploy simulado realizado com sucesso!"
+            echo "Aplicação disponível em: http://localhost:3002"
+            echo "Status do container:"
+            docker ps | grep todo-app-ci-test
+          else
+            echo "Erro no deploy simulado"
+            docker logs todo-app-ci-test
+            exit 1
+          fi
+          
+          # Limpar teste
+          docker-compose -f docker-compose-ci.yml down
+      - name: Relatório final de deploy
+        run: |
+          echo "PIPELINE CI/CD CONCLUÍDO COM SUCESSO!"
+          echo ""
+          echo "Resumo:"
+          echo "Infraestrutura provisionada"
+          echo "Aplicação compilada"  
+          echo "Testes E2E executados"
+          echo "Imagem Docker criada e testada"
+          echo "Deploy simulado realizado"
+          echo ""
+          echo "Pronto para deploy em produção!"
+          echo "Artefatos disponíveis:"
+          echo "  - Código compilado"
+          echo "  - Imagem Docker: todo-app:latest"
+          echo "  - Configuração de infraestrutura"
+
+  # Job de Notificação 
+  notify:
+    runs-on: ubuntu-latest
+    needs: [infrastructure, build, cypress-run, docker-build, deploy-local]
+    if: always()
+    steps:
+      - name: Notificar resultado do pipeline
+        run: |
+          echo "RESULTADO DO PIPELINE CI/CD:"
+          echo ""
+          echo "Infraestrutura: ${{ needs.infrastructure.result }}"
+          echo "Build: ${{ needs.build.result }}"
+          echo "Testes: ${{ needs.cypress-run.result }}"
+          echo "Docker Build: ${{ needs.docker-build.result }}"
+          echo "Deploy: ${{ needs.deploy-local.result }}"
+          echo ""
+          
+          if [ "${{ needs.deploy-local.result }}" == "success" ]; then
+            echo "PIPELINE COMPLETO EXECUTADO COM SUCESSO!"
+            echo "Aplicação TO-DO pronta para produção"
+          else
+            echo "FALHA NO PIPELINE!"
+            echo "Verifique os logs dos jobs que falharam"
+          fi
+
