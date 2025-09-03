@@ -171,7 +171,7 @@ jobs:
         run: |
           echo "Simulando deploy com Docker Compose..."
           
-          cat > docker-compose-ci.yml << 'EOF'
+          cat > docker-compose.yml << 'EOF'
           version: '3.8'
           services:
             todo-app:
@@ -182,7 +182,7 @@ jobs:
               restart: unless-stopped
           EOF
           
-          docker-compose -f docker-compose-ci.yml up -d
+          docker-compose -f docker-compose.yml up -d
           sleep 15
           
           if curl -f http://localhost:3002; then
@@ -196,7 +196,7 @@ jobs:
             exit 1
           fi
           
-          docker-compose -f docker-compose-ci.yml down
+          docker-compose -f docker-compose.yml down
       - name: Relatório final de deploy
         run: |
           echo "PIPELINE CI/CD CONCLUÍDO COM SUCESSO!"
